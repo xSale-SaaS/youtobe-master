@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 import re
 import json
 import jsonpath
+from youtubesearchpython import VideosSearch
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     # 'Cookie':'VISITOR_PRIVACY_METADATA=CgJVUxIEGgAgJw%3D%3D; __Secure-3PAPISID=mMGfGplRnaGT-Vsx/A0JQFTzXE6I3XYHvG; __Secure-3PSID=eQiajaYRICdTLPSGJwgppNwX8ohh6KsVfPlkDN1BsP8NbOd9Ljd55NkVq2EMNXCkrN0QWA.; LOGIN_INFO=AFmmF2swRgIhAJvtj68R9QzS1EcXgE0CBK5_kNHTacdwo7eljB14o6UXAiEA_ae_nNYrW3x7JVQopGynDXvdzH3E7IWXwZLFf7moBDY:QUQ3MjNmd1J6SGdmYTdUTHNZTlNtbDN5b2J0VHV5cHZNS0FpS1RqdnN1cUlHUW5DQjEtVmxLVXBEXzI4X2N5OFJaVmV1cWM0UXowczBCaGx1TTRpcnV5NktnZmktZkN6WGNTamtPbllsTEZISWJJZWE2VkprMHpBRWtueDF2Yks3emZGa254dUhxMUZBaUE2TGZpcGZDN3F1OFRMVklIOTJB; VISITOR_PRIVACY_METADATA=CgJVUxIEGgAgJw%3D%3D; VISITOR_INFO1_LIVE=SG1Jnd3yYro; YSC=nbpZ8fCoJRg; PREF=f7=100&tz=Asia.Shanghai&f4=4000000; __Secure-1PSIDTS=sidts-CjEBYfD7ZyDR8Km-m3vzan4Y6U9seN3M1h4V22yT35_BaOZBY0I-GMyyi3rkjFkEkNFSEAA; __Secure-3PSIDTS=sidts-CjEBYfD7ZyDR8Km-m3vzan4Y6U9seN3M1h4V22yT35_BaOZBY0I-GMyyi3rkjFkEkNFSEAA; __Secure-3PSIDCC=AKEyXzVf0ClXOUlFawVu5ZnylW3S4MDG9hmmyOG2C5anOtIn54j0iloxdxKnXxs0zjYVXlrhEw'
@@ -27,38 +28,27 @@ pattern = r'<script.*?>(.*?)</script>'
 """
 def get_person_list(category):
     # 匹配JSON数据部分
-    json_pattern = r'{[^{}]*}'
-    list_url = f'https://www.youtube.com/results?search_query={category}'
     url_list = []
-    search_result = requests.get(list_url, headers=headers)
-    # 使用正则表达式提取 <script> 标签中的内容
-    script_contents = re.findall(pattern, search_result.text, re.DOTALL)
-    # 打印提取到的内容
-    for script_content in script_contents:
-        json_data = re.findall(json_pattern, script_content, re.DOTALL)
-        for data in json_data:
-            try:
-                # 解析JSON数据
-                json_obj = json.loads(data)
-                # 在这里你可以进一步处理JSON数据，比如打印或保存到文件
-                if json_obj and 'url' in json_obj:
-                    url = json_obj['url']
-                    if url and url.startswith('/@'):
-                        url_list.append(url)
-            except json.decoder.JSONDecodeError as e:
-                # 输出错误信息和错误的JSON数据
-                print("Error decoding JSON:", e)
-                print("Invalid JSON data:", data)
-    url_list = list(set(url_list))
-    return url_list
+    videosSearch = VideosSearch(category, limit=10)
+    while len(url_list) < 50:
+        for video in videosSearch.result()['result']:
+            url = video['channel']['link']
+            if url not in url_list:
+                url_list.append(url)
+        videosSearch.next()
+
+    # search_result_con = requests.post(list_url_continue,json = json.dumps(body), headers=headers,)
+    # print(search_result_con)
+    return list(set(url_list))
+
 
 """
 :param path 达人主页的path
 :return json key:'title' 'intro' 'videoCount' 'outsideChainList' 'subscriberCount'
 """
 def get_person_info(path):
-    home_page_url = f'https://www.youtube.com{path}'
-    home_page = requests.get(home_page_url, headers=person_info_headers)
+    # home_page_url = f'https://www.youtube.com{path}'
+    home_page = requests.get(path, headers=person_info_headers)
     person_info_dict = {}
     soup = BeautifulSoup(home_page.text, "html.parser")
     # 提取 script 标签中的 var 的正则
@@ -117,6 +107,9 @@ def get_person_info(path):
 
 
 if __name__ == '__main__':
+    #所有的category,['电影和动画','汽车和交通工具','音乐','宠物与动物','体育','旅行和活动','游戏','人和博客','喜剧','娱乐','新闻和政治','操作方法和风格','教育','科学技术','非营利组织和行动主义']
+    youtube_categories = ['Film&Animation', 'Autos&Vehicles', 'Music', 'Pets&Animals', 'Sports', 'Travel&Events',
+                          'Gaming', 'People&Blogs', 'Comedy', 'Entertainment', 'News+and+Politics', 'Howto&Style', 'Education', 'Science&Technology', 'Nonprofits&Activism']
     # 参数 两个单词中间+号隔开
     person_url_list = get_person_list('smartphone+review')
     for person_url in person_url_list:
